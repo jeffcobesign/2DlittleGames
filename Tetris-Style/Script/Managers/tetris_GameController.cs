@@ -1,8 +1,13 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+//using UnityEngine.UI;
 
 public class tetris_GameController : MonoBehaviour {
+
+
+
 
     tetris_Board m_gameBoard;
     tetris_Spawner m_spawner;
@@ -19,6 +24,8 @@ public class tetris_GameController : MonoBehaviour {
     float m_timeToDrop;
 
     float m_keyToNextKey;
+
+
     /*
     float m_timeToNextKey;
 
@@ -45,21 +52,52 @@ public class tetris_GameController : MonoBehaviour {
 
     bool m_clockwise = true;
 
-
-
-
     public GameObject m_gameOverPanel;
     public GameObject m_gamePausePanel;
 
     tetris_SoundManager m_soundManager;
     tetris_ScoreManager m_scoreManager;
+    tetris_Holder m_holder;
+    public tetris_ParticlePlayer m_gameOverFx;
 
     public bool m_isPaused = false;
 
+    //public Text diagnosticText;
 
-	// Use this for initialization
-	void Start () 
+    enum Direction{none, left, right, up, down}
+    Direction m_dragDirection = Direction.none;
+    Direction m_swipeDirection = Direction.none;
+
+    float m_timeToNextDrag;
+    float m_timeToNextSwipe;
+
+    [Range(0.05f, 1f)]
+    public float m_minTimeToDrag = 0.15f;
+
+    [Range(0.05f, 1f)]
+    public float m_minTimeToSwipe = 0.3f;
+
+    bool m_didTap = false;
+
+    private void OnEnable()
     {
+        tetris_TouchController.DragEvent += DragHandler;
+        tetris_TouchController.SwipeEvent += SwipeHandler;
+        tetris_TouchController.TapEvent += TapHandler;
+
+    }
+
+    private void OnDisable()
+    {
+        tetris_TouchController.DragEvent -= DragHandler;
+        tetris_TouchController.SwipeEvent -= SwipeHandler;
+        tetris_TouchController.TapEvent -= TapHandler;
+    }
+
+    // Use this for initialization
+    void Start () 
+    {
+        //if (diagnosticText){diagnosticText.text = "";}
         //m_gameBoard = GameObject.FindWithTag("Board").GetComponent<tetris_Board>();
         // m_gameBoard = GameObject.FindObjectsOfType<tetris_Board>();
 
@@ -75,6 +113,8 @@ public class tetris_GameController : MonoBehaviour {
         m_scoreManager= GameObject.FindObjectOfType<tetris_ScoreManager>();
 
         m_ghost = GameObject.FindObjectOfType<tetris_Ghost>();
+
+        m_holder= GameObject.FindObjectOfType<tetris_Holder>();
 
         if (!m_scoreManager)
         {
@@ -125,77 +165,52 @@ public class tetris_GameController : MonoBehaviour {
     {
         if ((Input.GetButton("MoveRight") && (Time.time > m_timeToNextKeyLeftRight)) || Input.GetButtonDown("MoveRight"))
         {
-            m_activeShape.MoveRight();
-            m_timeToNextKeyLeftRight = Time.time + m_keyRepeatRateLeftRight;
-
-
-            if (!m_gameBoard.IsValidPosition(m_activeShape))
-            {
-                m_activeShape.MoveLeft();
-                PlaySound(m_soundManager.m_errorSound,0.5f);
-            }else
-            {
-                PlaySound(m_soundManager.m_moveSound,0.5f);
-                
-            }
+            MoveRight();
         }
 
         else if ((Input.GetButton("MoveLeft") && (Time.time > m_timeToNextKeyLeftRight)) || Input.GetButtonDown("MoveLeft"))
         {
-            m_activeShape.MoveLeft();
-            m_timeToNextKeyLeftRight = Time.time + m_keyRepeatRateLeftRight;
-   
-
-
-            if (!m_gameBoard.IsValidPosition(m_activeShape))
-            {
-                m_activeShape.MoveRight();
-                PlaySound(m_soundManager.m_errorSound, 0.5f);
-            }
-            else
-            {
-                PlaySound(m_soundManager.m_moveSound, 0.5f);
-
-            }
+            MoveLeft();
         }
 
         else if (Input.GetButton("Rotate") && (Time.time > m_timeToNextKeyRotate))
         {
-            // m_activeShape.RotateRight();
-
-            m_activeShape.RotateClockwise(m_clockwise);
-            m_timeToNextKeyRotate = Time.time + m_keyRepeatRateRotate;
-
-            if (!m_gameBoard.IsValidPosition(m_activeShape))
-            {
-                //m_activeShape.RotateLeft();
-                m_activeShape.RotateClockwise(!m_clockwise);
-                PlaySound(m_soundManager.m_moveSound, 0.5f);
-            }
+            Rotate();
         }
 
         else if ((Input.GetButton("MoveDown") && (Time.time > m_timeToNextKeyDown)) || (Time.time > m_timeToDrop))
         {
-            m_timeToDrop = Time.time + m_dropIntervalModded;
-            m_timeToNextKeyDown = Time.time + m_keyRepeatRateDown;
-
-            m_activeShape.MoveDown();
-            PlaySound(m_soundManager.m_moveSound, 0.01f);
-
-            if (!m_gameBoard.IsValidPosition(m_activeShape))
-            {
-                if (m_gameBoard.IsOverLimit(m_activeShape))
-                {
-                    GameOver();
-
-                }
-                else
-                {
-
-                    LandShape();
-                }
-            }
+            MoveDown();
         }
+        // touch Controls ------------------
+        else if((m_dragDirection == Direction.right && Time.time>m_timeToNextSwipe) || (m_dragDirection==Direction.right) && Time.time > m_timeToNextDrag )
+        {
+            MoveRight();
+            m_timeToNextDrag = Time.time + m_minTimeToDrag;
+            m_timeToNextSwipe = Time.time + m_minTimeToSwipe;
+        }
+        else if ((m_dragDirection == Direction.left && Time.time > m_timeToNextSwipe) || (m_swipeDirection == Direction.left) && Time.time > m_timeToNextDrag)
+        {
+            MoveLeft();
+            m_timeToNextDrag = Time.time + m_minTimeToDrag;
+            m_timeToNextSwipe = Time.time + m_minTimeToSwipe;
+        }
+        else if ((m_swipeDirection == Direction.up && Time.time > m_timeToNextSwipe) || (m_didTap))
+        {
+            Rotate();
+            m_timeToNextSwipe = Time.time + m_minTimeToSwipe;
+            m_didTap = false;
+
+        }
+        else if (m_dragDirection == Direction.down && Time.time > m_timeToNextDrag)
+        {
+            MoveDown();
+        }
+
+        // touch Controls ------------------
+
+
+
         else if(Input.GetButtonDown("ToggleRot"))
         {
             ToggleRotDirection();
@@ -204,12 +219,93 @@ public class tetris_GameController : MonoBehaviour {
         {
             TogglePause();
         }
+        else if(Input.GetButtonDown("Hold"))
+        {
+            Hold();
+        }
 
-
+        m_dragDirection = Direction.none;
+        m_swipeDirection = Direction.none;
+        m_didTap = false;
 
     }
 
-    private void PlaySound(AudioClip clip, float volMultiplier)
+    private void Rotate()
+    {
+        // m_activeShape.RotateRight();
+
+        m_activeShape.RotateClockwise(m_clockwise);
+        m_timeToNextKeyRotate = Time.time + m_keyRepeatRateRotate;
+
+        if (!m_gameBoard.IsValidPosition(m_activeShape))
+        {
+            //m_activeShape.RotateLeft();
+            m_activeShape.RotateClockwise(!m_clockwise);
+            PlaySound(m_soundManager.m_moveSound, 0.5f);
+        }
+    }
+
+    private void MoveDown()
+    {
+        m_timeToDrop = Time.time + m_dropIntervalModded;
+        m_timeToNextKeyDown = Time.time + m_keyRepeatRateDown;
+
+        m_activeShape.MoveDown();
+        PlaySound(m_soundManager.m_moveSound, 0.01f);
+
+        if (!m_gameBoard.IsValidPosition(m_activeShape))
+        {
+            if (m_gameBoard.IsOverLimit(m_activeShape))
+            {
+                GameOver();
+
+            }
+            else
+            {
+
+                LandShape();
+            }
+        }
+    }
+
+    private void MoveLeft()
+    {
+        m_activeShape.MoveLeft();
+        m_timeToNextKeyLeftRight = Time.time + m_keyRepeatRateLeftRight;
+
+
+
+        if (!m_gameBoard.IsValidPosition(m_activeShape))
+        {
+            m_activeShape.MoveRight();
+            PlaySound(m_soundManager.m_errorSound, 0.5f);
+        }
+        else
+        {
+            PlaySound(m_soundManager.m_moveSound, 0.5f);
+
+        }
+    }
+
+    private void MoveRight()
+    {
+        m_activeShape.MoveRight();
+        m_timeToNextKeyLeftRight = Time.time + m_keyRepeatRateLeftRight;
+
+
+        if (!m_gameBoard.IsValidPosition(m_activeShape))
+        {
+            m_activeShape.MoveLeft();
+            PlaySound(m_soundManager.m_errorSound, 0.5f);
+        }
+        else
+        {
+            PlaySound(m_soundManager.m_moveSound, 0.5f);
+
+        }
+    }
+
+    private void PlaySound(AudioClip clip, float volMultiplier=1)
     {
         if (m_soundManager.m_fxEnabled && clip)
         {
@@ -221,56 +317,78 @@ public class tetris_GameController : MonoBehaviour {
     {
         m_activeShape.MoveUp();
         m_gameOver = true;
-        if (m_gameOverPanel)
-        {
-            m_gameOverPanel.SetActive(true);
-        }
+
+        StartCoroutine(GameOverRotine());
+       
         PlaySound(m_soundManager.m_gameOverSound, 5f);
         PlaySound(m_soundManager.m_gameOverVocalClip, 5f);
 
         Debug.LogWarning(m_activeShape.name + " is over the limit height!");
     }
 
+    IEnumerator GameOverRotine()
+    {
+        if (m_gameOverFx) { m_gameOverFx.Play(); }
+
+        yield return new WaitForSeconds(0.4f);
+
+        if (m_gameOverPanel)
+        {
+            m_gameOverPanel.SetActive(true);
+        }
+    }
+
     private void LandShape()
     {
         // shape lands here
-
-        m_timeToNextKeyLeftRight = Time.time;
-        m_timeToNextKeyDown = Time.time;
-        m_timeToNextKeyRotate = Time.time;
-
-        m_activeShape.MoveUp();
-        m_gameBoard.StoreShapeInGrid(m_activeShape);
-
-        if (m_ghost) { m_ghost.Reset(); }
-
-        m_activeShape = m_spawner.SpawnShape();
-        m_gameBoard.ClearAllRows();
-
-        PlaySound(m_soundManager.m_dropSound,0.5f);
-
-        if(m_gameBoard.m_completedRows >0)
+        if (m_activeShape)
         {
-            m_scoreManager.ScoreLines(m_gameBoard.m_completedRows);
+            m_timeToNextKeyLeftRight = Time.time;
+            m_timeToNextKeyDown = Time.time;
+            m_timeToNextKeyRotate = Time.time;
 
-            if(m_scoreManager.m_didLevelUp)
+            m_activeShape.MoveUp();
+            m_gameBoard.StoreShapeInGrid(m_activeShape);
+
+            m_activeShape.LandShapeFX();
+
+            if (m_ghost) { m_ghost.Reset(); }
+
+            if (m_holder)
             {
-                PlaySound(m_soundManager.m_levelUpVocalClip, 1f);
-                m_dropIntervalModded = Mathf.Clamp( m_dropInterval - (((float)m_scoreManager.m_level - 1)*0.03f), 0.05f, 1f);
+                m_holder.m_canRelease = true;
 
-
-            }else
-            {
-                if (m_gameBoard.m_completedRows > 1)
-                {
-                    AudioClip randomVocal = m_soundManager.GetRandomClip(m_soundManager.m_vocalClips);
-                    PlaySound(randomVocal,0.5f);
-                } 
             }
 
+            m_activeShape = m_spawner.SpawnShape();
+            m_gameBoard.StartCoroutine("ClearAllRows");
+
+            PlaySound(m_soundManager.m_dropSound, 0.5f);
+
+            if (m_gameBoard.m_completedRows > 0)
+            {
+                m_scoreManager.ScoreLines(m_gameBoard.m_completedRows);
+
+                if (m_scoreManager.m_didLevelUp)
+                {
+                    PlaySound(m_soundManager.m_levelUpVocalClip, 1f);
+                    m_dropIntervalModded = Mathf.Clamp(m_dropInterval - (((float)m_scoreManager.m_level - 1) * 0.03f), 0.05f, 1f);
 
 
-            PlaySound(m_soundManager.m_clearRowSound,0.7f);
+                }
+                else
+                {
+                    if (m_gameBoard.m_completedRows > 1)
+                    {
+                        AudioClip randomVocal = m_soundManager.GetRandomClip(m_soundManager.m_vocalClips);
+                        PlaySound(randomVocal, 0.5f);
+                    }
+                }
+
+
+
+                PlaySound(m_soundManager.m_clearRowSound, 0.7f);
+            }
         }
 
     }
@@ -293,7 +411,8 @@ public class tetris_GameController : MonoBehaviour {
     public void Restart()
     {
         Time.timeScale = 1f;
-        Application.LoadLevel(Application.loadedLevel);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        //Application.LoadLevel(Application.loadedLevel);
     }
 
     public void ToggleRotDirection()
@@ -329,6 +448,87 @@ public class tetris_GameController : MonoBehaviour {
             }
             Time.timeScale = (m_isPaused) ? 0 : 1;
         }
+    }
+
+    public void Hold()
+    {
+        if(!m_holder)
+        {
+            return;
+        }
+
+        if(!m_holder.m_heldShape)
+        {
+
+            m_holder.Catch(m_activeShape);
+            m_activeShape = m_spawner.SpawnShape();
+            PlaySound(m_soundManager.m_holdSound);
+
+        }else if(m_holder.m_canRelease)
+        {
+            tetris_Shape shape = m_activeShape;
+            m_activeShape = m_holder.Release();
+            m_activeShape.transform.position = m_spawner.transform.position;
+            m_holder.Catch(shape);
+            PlaySound(m_soundManager.m_holdSound);
+
+            
+        }else
+        {
+            Debug.LogWarning("HOLDER WARNING!  Wait for cool down!");
+            PlaySound(m_soundManager.m_errorSound);
+        }
+
+
+
+        if(m_ghost)
+        {
+            m_ghost.Reset();
+        }
+
+       
+    }
+
+    void DragHandler(Vector2 dragMovement)
+    {/*
+        if(diagnosticText)
+        {
+            diagnosticText.text = "SwipeEvent Detected";
+        }*/
+
+        m_dragDirection = GetDirection(dragMovement);
+    }
+
+    void SwipeHandler(Vector2 swipeMovement)
+    {/*
+        if(diagnosticText)
+        {
+            diagnosticText.text = "";
+        }*/
+        m_swipeDirection = GetDirection(swipeMovement);
+    }
+
+    void TapHandler(Vector2 tapMovement)
+    {
+        m_didTap = true;
+    }
+
+    Direction GetDirection(Vector2 swipeMovement)
+    {
+        Direction swipeDir = Direction.none;
+
+        // horizontal
+        if(Mathf.Abs(swipeMovement.x)>Mathf.Abs(swipeMovement.y))
+        {
+            swipeDir = (swipeMovement.x > 0) ? Direction.right : Direction.left;
+        }
+        // vertical
+        else
+        {
+            swipeDir = (swipeMovement.y > 0) ? Direction.up : Direction.down;
+        }
+
+        return swipeDir;
     }
 
 }

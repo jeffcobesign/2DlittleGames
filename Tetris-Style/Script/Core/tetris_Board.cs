@@ -12,6 +12,7 @@ public class tetris_Board : MonoBehaviour
     Transform[,] m_grid;
 
     public int m_completedRows = 0;
+    public tetris_ParticlePlayer[] m_rowGlowFx = new tetris_ParticlePlayer[4];
 
 
     void Awake()
@@ -41,22 +42,22 @@ public class tetris_Board : MonoBehaviour
 
     bool IsOccupied(int x, int y, tetris_Shape shape)
     {
-        return (m_grid[x, y] != null) && m_grid[x,y].parent != shape.transform;
+        return (m_grid[x, y] != null) && m_grid[x, y].parent != shape.transform;
     }
 
 
     public bool IsValidPosition(tetris_Shape shape)
     {
-        foreach(Transform child in shape.transform)
+        foreach (Transform child in shape.transform)
         {
             Vector2 pos = tetris_Vectorf.Round(child.position);
 
-            if(!IsWithinBoard((int) pos.x, (int) pos.y))
+            if (!IsWithinBoard((int)pos.x, (int)pos.y))
             {
                 return false;
 
             }
-            if(IsOccupied((int) pos.x, (int) pos.y, shape))
+            if (IsOccupied((int)pos.x, (int)pos.y, shape))
             {
                 return false;
             }
@@ -65,22 +66,23 @@ public class tetris_Board : MonoBehaviour
     }
 
 
-    void DrawEmptyCells() 
+    void DrawEmptyCells()
     {
-        if(m_emptySprite !=null)
+        if (m_emptySprite != null)
         {
-            for (int y = 0; y < m_height - m_header;y++)
+            for (int y = 0; y < m_height - m_header; y++)
             {
-                for (int x = 0; x < m_width;x++)
+                for (int x = 0; x < m_width; x++)
                 {
                     Transform clone;
                     clone = Instantiate(m_emptySprite, new Vector3(x, y, 0), Quaternion.identity) as Transform;
                     clone.name = "Board Space (x = " + x.ToString() + " , y = " + y.ToString() + " )";
                     clone.transform.parent = transform;
                 }
-                
+
             }
-        }else
+        }
+        else
         {
             Debug.Log("WARNING! Please assign the emptySprite object!");
 
@@ -89,12 +91,12 @@ public class tetris_Board : MonoBehaviour
 
     public void StoreShapeInGrid(tetris_Shape shape)
     {
-        if(shape==null)
+        if (shape == null)
         {
             return;
         }
 
-        foreach(Transform child in shape.transform)
+        foreach (Transform child in shape.transform)
         {
             Vector2 pos = tetris_Vectorf.Round(child.position);
             m_grid[(int)pos.x, (int)pos.y] = child;
@@ -104,9 +106,9 @@ public class tetris_Board : MonoBehaviour
 
     bool IsComplete(int y)
     {
-        for (int x = 0; x < m_width;x++)
+        for (int x = 0; x < m_width; x++)
         {
-            if(m_grid[x,y] == null)
+            if (m_grid[x, y] == null)
             {
                 return false;
             }
@@ -116,9 +118,9 @@ public class tetris_Board : MonoBehaviour
 
     void ClearRow(int y)
     {
-        for (int x = 0; x < m_width;x++)
+        for (int x = 0; x < m_width; x++)
         {
-            if(m_grid[x,y]!=null)
+            if (m_grid[x, y] != null)
             {
                 Destroy(m_grid[x, y].gameObject);
             }
@@ -135,43 +137,49 @@ public class tetris_Board : MonoBehaviour
                 m_grid[x, y - 1] = m_grid[x, y];
                 m_grid[x, y] = null;
                 m_grid[x, y - 1].position += new Vector3(0, -1, 0);
-                    
+
             }
         }
     }
 
     void ShiftRowsDown(int startY)
     {
-        for (int i = startY; i < m_height;i++)
+        for (int i = startY; i < m_height; i++)
         {
             ShiftOneRowDown(i);
         }
     }
 
-    public void ClearAllRows()
+    public IEnumerator ClearAllRows()
     {
         m_completedRows = 0;
-        for (int y = 0; y < m_height;y++)
+        for (int y = 0; y < m_height; ++y)
         {
-            if(IsComplete(y))
+            if (IsComplete(y))
             {
+                ClearRowEffects(m_completedRows, y);
                 m_completedRows++;
+            }
+        }
+        yield return new WaitForSeconds(0.5f);
 
+        for (int y = 0; y < m_height; y++)
+        {
+            if (IsComplete(y))
+            {
                 ClearRow(y);
-
                 ShiftRowsDown(y + 1);
-
+                yield return new WaitForSeconds(0.1f);
                 y--;
-                
             }
         }
     }
 
     public bool IsOverLimit(tetris_Shape shape)
     {
-        foreach(Transform child in shape.transform)
+        foreach (Transform child in shape.transform)
         {
-            if(child.transform.position.y>= (m_height - m_header-1))
+            if (child.transform.position.y >= (m_height - m_header - 1))
             {
                 return true;
             }
@@ -179,4 +187,14 @@ public class tetris_Board : MonoBehaviour
         }
         return false;
     }
+
+    void ClearRowEffects(int idx, int y)
+    {
+        if(m_rowGlowFx[idx])
+        {
+            m_rowGlowFx[idx].transform.position = new Vector3(0, y, -2f);
+            m_rowGlowFx[idx].Play();
+        }
+    }
+
 }

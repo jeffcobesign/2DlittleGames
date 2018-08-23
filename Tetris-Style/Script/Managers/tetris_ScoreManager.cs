@@ -23,6 +23,8 @@ public class tetris_ScoreManager : MonoBehaviour {
 
     public bool m_didLevelUp = false;
 
+    public tetris_ParticlePlayer m_levelUpFx;
+
 
 
     public void ScoreLines(int n)
@@ -102,6 +104,10 @@ public class tetris_ScoreManager : MonoBehaviour {
         m_level++;
         m_lines = m_linesPerLevel * m_level;
         m_didLevelUp = true;
+        if(m_levelUpFx)
+        {
+            m_levelUpFx.Play();
+        }
     }
 	
 }

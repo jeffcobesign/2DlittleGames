@@ -10,7 +10,7 @@ public class tetris_Spawner : MonoBehaviour {
 
     tetris_Shape[] m_queuedShapes = new tetris_Shape[3];
     float m_queueScale = 0.4f;
-
+    public tetris_ParticlePlayer m_spawnFx;
 
 
     tetris_Shape GetRandomShape()
@@ -33,8 +33,14 @@ public class tetris_Spawner : MonoBehaviour {
         //shape = Instantiate(GetRandomShape(), transform.position, Quaternion.identity) as tetris_Shape;
         shape = GetQueuedShape();
         shape.transform.position = transform.position;
-        shape.transform.localScale = Vector3.one;
+        //shape.transform.localScale = Vector3.one;
 
+        StartCoroutine(GrowShape(shape, transform.position, 0.30f));
+
+        if(m_spawnFx)
+        {
+            m_spawnFx.Play();
+        }
         if (shape) 
         { 
         return shape; 
@@ -63,7 +69,7 @@ public class tetris_Spawner : MonoBehaviour {
             if(!m_queuedShapes[i])
             {
                 m_queuedShapes[i] = Instantiate(GetRandomShape(), transform.position, Quaternion.identity) as tetris_Shape;
-                m_queuedShapes[i].transform.position = m_queueXforms[i].position;
+                m_queuedShapes[i].transform.position = m_queueXforms[i].position+ m_queuedShapes[i].m_queueOffset;
                 m_queuedShapes[i].transform.localScale = Vector3.one * m_queueScale;
             }
         }
@@ -80,7 +86,7 @@ public class tetris_Spawner : MonoBehaviour {
         for (int i = 1; i < m_queuedShapes.Length; i++)
         {
             m_queuedShapes[i - 1] = m_queuedShapes[i];
-            m_queuedShapes[i - 1].transform.position = m_queueXforms[i - 1].position;
+            m_queuedShapes[i - 1].transform.position = m_queueXforms[i - 1].position + m_queuedShapes[i].m_queueOffset;
         }
 
         m_queuedShapes[m_queuedShapes.Length - 1] = null;
@@ -90,7 +96,7 @@ public class tetris_Spawner : MonoBehaviour {
 
 
 	// Use this for initialization
-	void Start () {
+	void Awake () {
         /*Vector2 originalVector = new Vector2(4.3f, 1.3f);
         Vector2 newVector = tetris_Vectorf.Round(originalVector);
 
@@ -104,4 +110,23 @@ public class tetris_Spawner : MonoBehaviour {
 	void Update () {
 		
 	}
+
+    IEnumerator GrowShape(tetris_Shape shape, Vector3 position, float growTime = 0.5f)
+    {
+        float size = 0f;
+        growTime = Mathf.Clamp(growTime, 0.1f, 2f);
+        // 1 units/seconds  *  seconds/frame = units / frame
+        float sizeDelta =  Time.deltaTime / growTime;
+
+        while(size<1f)
+        {
+            shape.transform.localScale = Vector3.one * size;
+            size += sizeDelta;
+            shape.transform.position = position;
+            yield return null;  //wait until the next frame
+
+        }
+
+        shape.transform.localScale = Vector3.one;
+    }
 }
